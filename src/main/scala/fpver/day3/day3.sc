@@ -14,8 +14,8 @@ def processRow(row: Row, repo:OrderRepository):OptionT[LogsWriter, Seq[Transacti
     delivery <- row.asMoney("C")
     orderRef <- repo.findOrder(if (orderId == "ORD-17813") "not_found" else orderId)
   } yield Seq(
-    repo.writeTx(orderRef, PaymentFromRecipient, payment),
-    repo.writeTx(orderRef, DeliveryCost, delivery)
+    repo.writeTx(orderRef, PaymentFromRecipient, payment), // no point providing this info about orderRef
+    repo.writeTx(orderRef, DeliveryCost, delivery)         // no point providing ref again
   )
 
   txs
@@ -26,12 +26,11 @@ def processRow(row: Row, repo:OrderRepository):OptionT[LogsWriter, Seq[Transacti
 val repo = new OrderRepository(source)
 val txs = source.getRows map { processRow(_, repo).value }
 
-// yet another pattern
-def sequence[A, F[_] : Monad](seq:Seq[F[A]]):F[Seq[A]] = {
-  val monad = implicitly[Monad[F]]
-  seq.foldRight(monad.pure(Seq.empty[A])) { (elF, accF) =>
-    monad.flatMap(elF)( el => monad.flatMap(accF)(acc => monad.pure(acc :+ el)))
-  }
+// sequence pattern for applicatives
+def sequence[A, F[_] : Applicative](seq:Seq[F[A]]):F[Seq[A]] = {
+  val ap = implicitly[Applicative[F]]
+  val zero = ap.pure(Seq.empty[A])
+  seq.foldRight(zero) { (elF, accF) => ap.map2(elF, accF)(_ +: _) }
 }
 
 val result = sequence(txs) map (_.flatten)

@@ -36,6 +36,8 @@ object Writer {
       f <- ff
       a <- fa
     } yield f(a)
+
+    override def map[A, B](fa: LogsWriter[A])(f: (A) => B): LogsWriter[B] = writerFunctor.map(fa)(f)
   }
 
   implicit val writerMonad:Monad[LogsWriter] = new Monad[LogsWriter] {

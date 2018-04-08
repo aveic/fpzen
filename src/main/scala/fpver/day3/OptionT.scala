@@ -75,24 +75,21 @@ object OptionT {
     override def map[A, B](fa: OptionT[E,A])(f: (A) => B): OptionT[E,B] = fa map f
   }
 
-  implicit def optionTApplicative[E[_] : Monad] = new Applicative[({type f[x] = OptionT[E, x]})#f] {
+  implicit def optionTApplicative[E[_] : Applicative] = new Applicative[({type f[x] = OptionT[E, x]})#f] {
     override def pure[A](v: A): OptionT[E, A] = OptionT.pure[E](v)
-
     override def ap[A, B](ff: OptionT[E, (A) => B])(fa: OptionT[E, A]): OptionT[E, B] = {
-
-      val x = for {
-        f <- ff
-        a <- fa
-      } yield f(a)
-
-      x
+      val app = implicitly[Applicative[E]]
+      val f = app.map(ff.value) { (of:Option[(A) => B]) => (ao:Option[A]) => for { f <- of; a <- ao } yield f(a) }
+      OptionT(app.ap(f)(fa.value))
     }
+
+    override def map[A, B](fa: OptionT[E, A])(f: (A) => B): OptionT[E, B] = optionTFunctor.map(fa)(f)
   }
 
   implicit def optionTMonad[E[_] : Monad] = new Monad[({type f[x] = OptionT[E, x]})#f] {
     override def flatMap[A, B](fa: OptionT[E, A])(f: (A) => OptionT[E, B]): OptionT[E, B] = fa.flatMap(a => f(a))
-    override def map[A, B](fa: OptionT[E, A])(f: (A) => B): OptionT[E, B] = optionTFunctor.map(fa)(f)
-    override def pure[A](v: A): OptionT[E, A] = optionTApplicative.pure(v)
+    override def map[A, B](fa: OptionT[E, A])(f: (A) => B): OptionT[E, B] = fa map f
+    override def pure[A](v: A): OptionT[E, A] = OptionT.pure[E](v)
     override def ap[A, B](ff: OptionT[E, (A) => B])(fa: OptionT[E, A]): OptionT[E, B] = optionTApplicative.ap(ff)(fa)
   }
 }
