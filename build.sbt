@@ -19,7 +19,7 @@ libraryDependencies ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.postgresql" % "postgresql" % "9.3-1102-jdbc41",
+  "org.postgresql" % "postgresql" % "42.2.2",
   "org.scalikejdbc" %% "scalikejdbc"               % "2.5.2",
   "ch.qos.logback"  %  "logback-classic"           % "1.2.3"
 )
