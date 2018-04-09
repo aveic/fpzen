@@ -1,13 +1,13 @@
-PimPay Dev Docs
-===============
+Fp Zen
+======
 
 .. toctree::
-:maxdepth: 1
-       :caption: Содержание:
+   :maxdepth: 1
+   :caption: Содержание:
 
-       day1
-       day2
-       day3
+   day1
+   day2
+   day3
 
 Index
 =====
