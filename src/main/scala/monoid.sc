@@ -58,24 +58,14 @@ implicit def isSortedMonoid[A : Ordering]:Monoid[IsSorted[A]] = new Monoid[IsSor
   override def empty: IsSorted[A] = IsSorted(None, true, None)
   override def combine(a: IsSorted[A], b: IsSorted[A]): IsSorted[A] = {
     if (a.isSorted && b.isSorted) {
-      IsSorted(cmp(a.min, b.min, ordering.min(_, _)), true, cmp(a.max, b.max, ordering.max(_, _)))
+      IsSorted(cmp(a.min, b.min, ordering.min), true, cmp(a.max, b.max, ordering.max))
     }
     else IsSorted(None, false, None)
   }
 }
 
-def isSorted[A : Ordering](seq:IndexedSeq[A]):IsSorted[A] = {
-  println(seq)
-  if (seq.size > 5)
-  {
-    val (l, r) = seq.splitAt(seq.size / 2)
-    val m = implicitly[Monoid[IsSorted[A]]]
-    m.combine(isSorted(l), isSorted(r))
-  }
-  else if (seq.isEmpty) {
-    IsSorted(None, true, None)
-  }
-  else {
+def isSorted[A : Ordering](seq:IndexedSeq[A]):Boolean = {
+  def go(as:IndexedSeq[A]):IsSorted[A] = {
     val ord = implicitly[Ordering[A]]
     val (_, isSorted) = seq.foldRight((seq.last, true)){ (el, acc) => {
       el -> (acc._2 && ord.gteq(acc._1, el))
@@ -83,6 +73,8 @@ def isSorted[A : Ordering](seq:IndexedSeq[A]):IsSorted[A] = {
 
     if (isSorted) IsSorted(Some(seq.min), true, Some(seq.max)) else IsSorted(None, false, None)
   }
+
+  if (!seq.isEmpty) fold(seq.sliding(5).map(go).toList).isSorted else false
 }
 
-isSorted(Vector(1,2,3,4,5,6,7,10,11,12,13)).isSorted
+isSorted(Vector(1,2,3,4,5,6,7,10,11,12,13))
