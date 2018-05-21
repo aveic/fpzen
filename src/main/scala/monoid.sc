@@ -34,6 +34,7 @@ implicit class MonoidOps[A : Monoid](a:A) {
 
 1 |+| 2
 
+
 Map("a" -> 2) |+| Map("b" -> 5)
 
 implicit def EndoFunctionMonoid[A]: Monoid[(A) => A] = new Monoid[(A) => A] {

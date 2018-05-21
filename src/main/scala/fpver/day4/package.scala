@@ -34,7 +34,7 @@ package object day4 {
 
   type Logs = Vector[LogMessage]
 
-  implicit def vectorMonoid[A]:day4.Monoid[Vector[A]] = new day4.Monoid[Vector[A]] {
+  implicit def vectorMonoid[A]: Monoid[Vector[A]] = new Monoid[Vector[A]] {
     override def empty: Vector[A] = Vector.empty[A]
     override def combine(a: Vector[A], b: Vector[A]): Vector[A] = a ++ b
   }
@@ -44,15 +44,15 @@ package object day4 {
   }
 
   implicit class WriterOps[A](v:A) {
-    def asWriter:day4.Writer[Logs, A] = Writer(Vector(), v)
+    def asWriter:Writer[Logs, A] = Writer(Vector(), v)
   }
 
   implicit class WriterTryOps[A](ta:Try[A]) {
-    def write[W : day4.Monoid](f: Throwable => W):Writer[W,Option[A]] = Writer.fromTry(ta, f)
+    def write[W : Monoid](f: Throwable => W):Writer[W,Option[A]] = Writer.fromTry(ta, f)
   }
 
   implicit class OptionOps[A](oa:Option[A]) {
-    def loggedWith(logs: Logs):day4.OptionT[LogsWriter, A] = OptionT(Writer.fromOption(oa, logs))
+    def loggedWith(logs: Logs):OptionT[LogsWriter, A] = OptionT(Writer.fromOption(oa, logs))
   }
 
   implicit class ValueOps[A](a:A) {

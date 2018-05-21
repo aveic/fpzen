@@ -20,11 +20,15 @@ implicit class Ops[A](a:OptionT[LogsWriter, A]) {
 // the program itself
 // introduce skipping
 // and rowNumber
+
+// arbitrary details: repo, orderRef, for each new "domain" we introduce dependency
+//
 def processRow(row: Row, repo:OrderRepository):OptionT[LogsWriter, Seq[Transaction]] = {
   val txs = for {
     orderId  <- row.column("A")  // same for row
     payment  <- row.asMoney("B") // and repo
     delivery <- row.asMoney("C") defaulted Money(34.5)
+    // TODO: orElse is part of OptionT?
     orderRef <- repo.findOrder(if (orderId == "ORD-17813") "not_found" else orderId) orElse repo.createOrder("AC-" + orderId)
     tx1 <- repo writeTx (orderRef, PaymentFromRecipient, payment)
     tx2 <- repo writeTx (orderRef, DeliveryCost, delivery)
