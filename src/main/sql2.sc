@@ -47,19 +47,24 @@ object Sql {
   implicit val IntToIntegral: Int ~> Type.Integral = create[Int,     Type.Integral](i => i.toString)
   implicit val boolean: Boolean ~> Type.Bool       = create[Boolean, Type.Bool](b => if (b) "TRUE" else "FALSE")
 
-  case class Binding[+A <: Type](name: Symbol)
-  case class Bind[+A <: Type, +B](name:Symbol, v:B)
-
   trait Expr[+A <: Type] {
     def plot:String
-    def bindings:Seq[Binding[Type]] = Seq()
-    def binds:Seq[Bind[Type, Any]]  = Seq()
+    def placeholders:Seq[Symbol]  = Seq()
+    def bindings:Map[Symbol, Any] = Map()
+  }
+
+  object Expr {
+    def mergePlaceholders(l:Seq[Seq[Symbol]]):Seq[Symbol]     = l.flatten.toSet.toSeq
+    def mergeBindings(l:Seq[Map[Symbol,Any]]):Map[Symbol,Any] = l.foldRight(Map():Map[Symbol,Any]) { _ ++ _ }
   }
 
   case class LiftedValExpr[+S <: Type](override val plot:String) extends Expr[S]
 
   case class BinOpExpr[+S <: Type](a: Expr[Type], b:Expr[Type], op:String, wrapOperands:Boolean = true) extends Expr[S] {
     override def plot:String = if (wrapOperands) s"(${a.plot}) $op (${b.plot})" else s"${a.plot} $op ${b.plot}"
+
+    override def placeholders = Expr.mergePlaceholders(Seq(a.placeholders, b.placeholders))
+    override def bindings     = Expr.mergeBindings(Seq(a.bindings, b.bindings))
   }
 
   case class Meta(name:Symbol, defaultAlias: Symbol, schema:Symbol = 'public) {
@@ -143,6 +148,44 @@ object Sql {
   trait CompleteSelect extends SelectExpr {
     protected def sb:SelectBuilder
     override def plot = sb.plot
+
+    protected def toPHSeq[S <: Type](o:Option[Expr[S]]):Seq[Symbol] = o map (_.placeholders) getOrElse { Seq() }
+    protected def toPHSeq[S <: Type](seq:Seq[Expr[S]]):Seq[Symbol]  = seq map (_.placeholders) flatten
+
+    override def placeholders: Seq[Symbol] = {
+      Expr.mergePlaceholders(
+        Seq(
+          toPHSeq(sb.cols),
+          sb.joins map { j => toPHSeq(j.on) } flatten,
+          toPHSeq(sb.where),
+          toPHSeq(sb.groupBy),
+          toPHSeq(sb.having),
+          toPHSeq(sb.orderBy.map(se => se.e)),
+          toPHSeq(sb.limit),
+          toPHSeq(sb.offset),
+        )
+      )
+    }
+
+    protected def toBDMap(o:Option[Expr[Type]]):Map[Symbol,Any] = o map (_.bindings) getOrElse { Map() }
+    protected def toBDMap(seq:Seq[Expr[Type]]):Map[Symbol,Any]  = Expr.mergeBindings(seq map (_.bindings))
+
+    override def bindings: Map[Symbol,Any] = {
+      Expr.mergeBindings(
+        Seq(
+          toBDMap(sb.cols),
+          Expr.mergeBindings( sb.joins map { j => toBDMap(j.on) } ),
+          toBDMap(sb.where),
+          toBDMap(sb.groupBy),
+          toBDMap(sb.having),
+          toBDMap(sb.orderBy.map(se => se.e)),
+          toBDMap(sb.limit),
+          toBDMap(sb.offset),
+        )
+      )
+    }
+
+    def missingBindings:Seq[Symbol] = (placeholders.toSet[Symbol] diff bindings.keys.toSet[Symbol]).toSeq
   }
 
   class SelectInitial(override protected val sb:SelectBuilder) extends CompleteSelect {
@@ -211,6 +254,9 @@ object Sql {
   implicit class SameTypeExprSyntax[S <: Type](a:Expr[S]) {
     def IN(opts:Expr[S]*):Expr[Type.Bool] = new Expr[Type.Bool] {
       override def plot:String = s"${a.plot} IN (" + opts.map(_.plot).mkString(",") + ")"
+
+      override def placeholders: Seq[Symbol] = Expr.mergePlaceholders(opts.map(_.placeholders))
+      override def bindings: Map[Symbol,Any] = Expr.mergeBindings(opts.map(_.bindings))
     }
   }
 
@@ -237,6 +283,28 @@ object Sql {
   //****
 
 
+  //************* helper methods
+  def bind[S <: Type](placeholder:Symbol):Expr[S] = new Expr[S] {
+    override def plot = s":${placeholder.s}"
+    override def placeholders = Seq(placeholder)
+  }
+
+  def bind[S <: Type](placeholder:Symbol, v:Any):Expr[S] = new Expr[S] {
+    override def plot = s":${placeholder.s}"
+    override def placeholders = Seq(placeholder)
+    override def bindings = Map(placeholder -> v)
+  }
+
+  def plain[S <: Type](expr:String):Expr[S] = new Expr[S] {
+    override def plot = expr
+  }
+
+  //def fn[S <: Type](fn:String)(args:Expr[Type]*):Expr[S] = new Expr[S] {}
+  //**************
+
+  // binds
+  val x = "status"
+
   // aliases
   val (o,ct,cg) = (tbl_order,tbl_customer,tbl_customer_group)
 
@@ -249,8 +317,8 @@ object Sql {
       INNER_JOIN tbl_customer AS 'ct       ON (o.customer_id === ct.id)
       LEFT_JOIN  tbl_customer_group AS 'cg ON (ct.group_id   === cg.id)
       WHERE (
-              (ct.id === 3)
-               AND (o.status IN ("intransit", "delivered"))
+              (ct.id === bind[Type.Integral]('customerId))
+               AND (o.status IN ("intransit", bind[Type.Text]('st2, x)))
            )
 
       /* NOT ( ct.id > bind[Int]('customerId)
@@ -269,12 +337,8 @@ object Sql {
     )
 
 
-  /*
-  def fn[A](fn:String)(args:Expr[Any]*):Expr[A] = new Expr[A] {}
-  def plain[A](expr:String):Expr[A] = new Expr[A] {}
-  def bind[A](s:Symbol):Expr[A] = new Expr[A] {}
-  def bind[A](s:Symbol, e:Expr[A]):Expr[A] = new Expr[A] {}
-  */
-
   query.plot
+  query.placeholders
+  query.bindings
+  query.missingBindings
 }
