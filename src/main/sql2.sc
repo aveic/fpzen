@@ -80,16 +80,25 @@ object Sql {
     override def plot = s"${table._meta.aliased}.${col.s}"
   }
 
-  object tbl_order extends Table(Meta('tbl_order, 'o)) {
+
+  class TableOrder extends Table(Meta('tbl_order, 'o)) {
     val id = column[Type.Integral]('id)
     val customer_id = column[Type.Integral]('customer_id)
     val status = column[Type.Text]('status)
   }
 
+  object tbl_order extends TableOrder
+
   object tbl_customer extends Table(Meta('tbl_customer, 'ct)) {
     val id = column[Type.Integral]('id)
     val group_id = column[Type.Integral]('customer_id)
   }
+
+  class AliasedTable[T <: Table](t:T, alias:Symbol) { self: T =>
+
+  }
+
+  val oa = new AliasedTable[TableOrder](tbl_order, 'o)
 
   object tbl_customer_group extends Table(Meta('tbl_customer_group, 'cg)) {
     val id = column[Type.Integral]('id)
